@@ -33,9 +33,9 @@ def main():
 
     args = parser.parse_args()
     questions_answers = load_questions_from_files(args.load_dir)
-    if args.json_path:
-        with open(args.json_path, 'w') as file:
-            json.dump(questions_answers)
+    if args.save_json:
+        with open(args.save_json, 'w') as file:
+            json.dump(questions_answers, file)
 
 
 if __name__ == '__main__':
