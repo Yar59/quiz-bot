@@ -1,6 +1,7 @@
 import argparse
 import os
 import pathlib
+import random
 import json
 
 
@@ -24,6 +25,11 @@ def load_questions_from_files(questions_dir):
         compilation = dict(zip(questions, answers))
         questions_answers.update(compilation)
     return questions_answers
+
+
+def get_random_question(file_path):
+    with open(file_path, 'rb') as file:
+        return random.choice(list(json.load(file).items()))
 
 
 def main():
