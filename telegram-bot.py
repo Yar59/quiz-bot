@@ -1,5 +1,6 @@
 import logging
 
+import redis
 import telegram
 from telegram import Update
 from telegram.ext import Updater
@@ -24,11 +25,13 @@ def echo(update: Update, context: CallbackContext):
     if update.message.text == 'Новый вопрос':
         question, answer = get_random_question('questions.json')
         context.bot.send_message(chat_id=update.effective_chat.id, text=question)
+        r.set(update.effective_chat.id, question)
     else:
         context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
 
 
 def quiz(update: Update, context: CallbackContext):
+    print(CallbackContext.args)
     custom_keyboard = [
         ['Новый вопрос', 'Сдаться'],
         ['Мой счет']
@@ -45,6 +48,11 @@ def main():
     env = Env()
     env.read_env()
     tg_token = env('TG_TOKEN')
+    redis_host = env('REDIS_HOST')
+    redis_port = env('REDIS_PORT')
+    redis_db = env('REDIS_DB')
+
+    r = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
 
     updater = Updater(token=tg_token)
 
