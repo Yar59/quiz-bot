@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 
 import redis
 import telegram
@@ -9,7 +10,7 @@ from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler, Filters
 from environs import Env
 
-from tools import get_random_question
+from tools import get_random_question, get_answer
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -21,13 +22,24 @@ def start(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
 
 
-def echo(update: Update, context: CallbackContext):
+def echo(update: Update, context: CallbackContext, redis_db):
     if update.message.text == 'Новый вопрос':
         question, answer = get_random_question('questions.json')
         context.bot.send_message(chat_id=update.effective_chat.id, text=question)
-        r.set(update.effective_chat.id, question)
+        redis_db.set(update.effective_chat.id, question)
+    elif update.message.text == 'Сдаться':
+        question = redis_db.get(update.effective_chat.id)
+        answer = get_answer('questions.json', question)
+        message = f'Правильный ответ на этот вопрос:\n{answer}'
+        context.bot.send_message(chat_id=update.effective_chat.id, text=message)
     else:
-        context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
+        question = redis_db.get(update.effective_chat.id)
+        answer = get_answer('questions.json', question)
+        simple_answer = answer.split("(")[0].split(".")[0].split(",")[0]
+        if update.message.text.strip() == simple_answer.strip():
+            context.bot.send_message(chat_id=update.effective_chat.id, text='Молодец, ты угадал, хочешь попробовать ещё?')
+        else:
+            context.bot.send_message(chat_id=update.effective_chat.id, text='Это неправильный ответ')
 
 
 def quiz(update: Update, context: CallbackContext):
@@ -51,17 +63,26 @@ def main():
     redis_host = env('REDIS_HOST')
     redis_port = env('REDIS_PORT')
     redis_db = env('REDIS_DB')
+    redis_username = env('REDIS_USERNAME')
+    redis_password = env('REDIS_PASSWORD')
 
-    r = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
+    redis_db = redis.Redis(
+        host=redis_host,
+        port=redis_port,
+        db=redis_db,
+        username=redis_username,
+        password=redis_password,
+        decode_responses=True
+    )
 
     updater = Updater(token=tg_token)
 
     dispatcher = updater.dispatcher
     start_handler = CommandHandler('start', start)
     dispatcher.add_handler(start_handler)
-    echo_handler = MessageHandler(Filters.text & (~Filters.command), echo)
+    echo_handler = MessageHandler(Filters.text & (~Filters.command), partial(echo, redis_db=redis_db))
     dispatcher.add_handler(echo_handler)
-    quiz_handler = CommandHandler('quiz', quiz)
+    quiz_handler = CommandHandler('quiz', partial(quiz, redis_db=redis_db))
     dispatcher.add_handler(quiz_handler)
 
     updater.start_polling()
