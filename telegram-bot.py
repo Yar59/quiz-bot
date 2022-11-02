@@ -2,12 +2,15 @@ import logging
 from functools import partial
 
 import redis
-import telegram
-from telegram import Update
-from telegram.ext import Updater
-from telegram.ext import CallbackContext
-from telegram.ext import CommandHandler
-from telegram.ext import MessageHandler, Filters
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    ConversationHandler,
+    CallbackContext,
+)
 from environs import Env
 
 from tools import get_random_question, get_answer
@@ -17,43 +20,69 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+logger = logging.getLogger(__name__)
+
+(
+    NEW_QUESTION,
+    HANDLE_SOLUTION,
+    GIVE_UP,
+    CANCEL_QUIZ,
+) = range(4)
+
 
 def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='Привет, это бот для викторин, чтобы начать викторину введи команду /quiz'
+    )
 
 
-def echo(update: Update, context: CallbackContext, redis_db):
-    if update.message.text == 'Новый вопрос':
-        question, answer = get_random_question('questions.json')
-        context.bot.send_message(chat_id=update.effective_chat.id, text=question)
-        redis_db.set(update.effective_chat.id, question)
-    elif update.message.text == 'Сдаться':
-        question = redis_db.get(update.effective_chat.id)
-        answer = get_answer('questions.json', question)
-        message = f'Правильный ответ на этот вопрос:\n{answer}'
-        context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-    else:
-        question = redis_db.get(update.effective_chat.id)
-        answer = get_answer('questions.json', question)
-        simple_answer = answer.split("(")[0].split(".")[0].split(",")[0]
-        if update.message.text.strip() == simple_answer.strip():
-            context.bot.send_message(chat_id=update.effective_chat.id, text='Молодец, ты угадал, хочешь попробовать ещё?')
-        else:
-            context.bot.send_message(chat_id=update.effective_chat.id, text='Это неправильный ответ')
-
-
-def quiz(update: Update, context: CallbackContext):
+def quiz(update: Update, context: CallbackContext) -> int:
     print(CallbackContext.args)
     custom_keyboard = [
         ['Новый вопрос', 'Сдаться'],
-        ['Мой счет']
+        ['Мой счет', 'Завершить викторину']
     ]
-    reply_markup = telegram.ReplyKeyboardMarkup(custom_keyboard)
+    reply_markup = ReplyKeyboardMarkup(custom_keyboard)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Начинаем викторину",
         reply_markup=reply_markup
     )
+    return NEW_QUESTION
+
+
+def handle_new_question(update: Update, context: CallbackContext, redis_db, file_path) -> int:
+    question, answer = get_random_question(file_path)
+    update.message.reply_text(question)
+    redis_db.set(update.effective_chat.id, question)
+    return HANDLE_SOLUTION
+
+
+def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, file_path) -> int:
+    question = redis_db.get(update.effective_chat.id)
+    answer = get_answer(file_path, question)
+    simple_answer = answer.split("(")[0].split(".")[0]
+    if update.message.text.strip() == simple_answer.strip():
+        update.message.reply_text('Молодец, ты угадал, хочешь попробовать ещё?')
+        return NEW_QUESTION
+    else:
+        update.message.reply_text('Это неправильный ответ')
+        return GIVE_UP
+
+
+def handle_give_up(update: Update, context: CallbackContext, redis_db, file_path) -> int:
+    question = redis_db.get(update.effective_chat.id)
+    answer = get_answer(file_path, question)
+    update.message.reply_text(f"Правильный ответ: {answer}")
+    return NEW_QUESTION
+
+
+def cancel(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text(
+        'Надеюсь тебе понравилась викторина!', reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
 
 
 def main():
@@ -65,6 +94,7 @@ def main():
     redis_db = env('REDIS_DB')
     redis_username = env('REDIS_USERNAME')
     redis_password = env('REDIS_PASSWORD')
+    file_path = 'questions.json'
 
     redis_db = redis.Redis(
         host=redis_host,
@@ -80,10 +110,41 @@ def main():
     dispatcher = updater.dispatcher
     start_handler = CommandHandler('start', start)
     dispatcher.add_handler(start_handler)
-    echo_handler = MessageHandler(Filters.text & (~Filters.command), partial(echo, redis_db=redis_db))
-    dispatcher.add_handler(echo_handler)
-    quiz_handler = CommandHandler('quiz', partial(quiz, redis_db=redis_db))
-    dispatcher.add_handler(quiz_handler)
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('quiz', quiz)],
+        states={
+            NEW_QUESTION: [
+                MessageHandler(
+                    Filters.regex('^Новый вопрос$'),
+                    partial(handle_new_question, redis_db=redis_db, file_path=file_path)
+                )
+            ],
+            HANDLE_SOLUTION: [
+                MessageHandler(
+                    Filters.regex('^Завершить викторину$'),
+                    cancel
+                ),
+                MessageHandler(
+                    Filters.text,
+                    partial(handle_solution_attempt, redis_db=redis_db, file_path=file_path)
+                ),
+            ],
+            GIVE_UP: [
+                MessageHandler(
+                    Filters.regex('^Сдаться$'),
+                    partial(handle_give_up, redis_db=redis_db, file_path=file_path)
+                ),
+                MessageHandler(
+                    Filters.text,
+                    partial(handle_solution_attempt, redis_db=redis_db, file_path=file_path)
+                )
+            ],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
+    dispatcher.add_handler(conv_handler)
 
     updater.start_polling()
 
