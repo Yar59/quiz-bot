@@ -32,6 +32,11 @@ def get_random_question(file_path):
         return random.choice(list(json.load(file).items()))
 
 
+def get_answer(file_path, question):
+    with open(file_path, 'rb') as file:
+        return json.load(file)[question]
+
+
 def main():
     parser = argparse.ArgumentParser(description='Загрузка и сохранение вопросов и ответов для викторины')
     parser.add_argument('load_dir', type=pathlib.Path, help='Директория с файлами вопросов')
