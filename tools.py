@@ -29,12 +29,12 @@ def load_questions_from_files(questions_dir):
 
 def get_random_question(file_path):
     with open(file_path, 'rb') as file:
-        return random.choice(list(json.load(file).items()))
+        return random.choice(list(json.load(file).keys()))
 
 
 def get_answer(file_path, question):
     with open(file_path, 'rb') as file:
-        return json.load(file)[question]
+        return json.load(file).get(question)
 
 
 def main():

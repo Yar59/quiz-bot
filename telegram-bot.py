@@ -53,7 +53,7 @@ def quiz(update: Update, context: CallbackContext) -> int:
 
 
 def handle_new_question(update: Update, context: CallbackContext, redis_db, file_path) -> int:
-    question, answer = get_random_question(file_path)
+    question = get_random_question(file_path)
     update.message.reply_text(question)
     redis_db.set(update.effective_chat.id, question)
     return HANDLE_SOLUTION
