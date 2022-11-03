@@ -94,7 +94,7 @@ def main():
     redis_db = env('REDIS_DB')
     redis_username = env('REDIS_USERNAME')
     redis_password = env('REDIS_PASSWORD')
-    file_path = 'questions.json'
+    file_path = env('QUESTIONS_PATH', 'questions.json')
 
     redis_db = redis.Redis(
         host=redis_host,
