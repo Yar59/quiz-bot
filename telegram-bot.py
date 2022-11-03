@@ -15,11 +15,6 @@ from environs import Env
 
 from tools import get_random_question, get_answer
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
 logger = logging.getLogger(__name__)
 
 (
@@ -86,6 +81,11 @@ def cancel(update: Update, context: CallbackContext) -> int:
 
 
 def main():
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+
     env = Env()
     env.read_env()
     tg_token = env('TG_TOKEN')

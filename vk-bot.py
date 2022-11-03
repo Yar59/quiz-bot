@@ -1,3 +1,5 @@
+import logging
+
 import redis
 import vk_api as vk
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
@@ -94,7 +96,10 @@ def main():
     longpoll = VkLongPoll(vk_session)
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-            handle_messages(event, vk_api, redis_db, file_path)
+            try:
+                handle_messages(event, vk_api, redis_db, file_path)
+            except:
+                logging.exception()
 
 
 if __name__ == '__main__':
