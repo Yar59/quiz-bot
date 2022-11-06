@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from environs import Env
 
-from load_questions import get_random_question, get_answer
+from load_questions import get_random_question, get_answer, load_questions_answers
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +47,16 @@ def quiz(update: Update, context: CallbackContext) -> int:
     return NEW_QUESTION
 
 
-def handle_new_question(update: Update, context: CallbackContext, redis_db, file_path) -> int:
-    question = get_random_question(file_path)
+def handle_new_question(update: Update, context: CallbackContext, redis_db, questions_answers) -> int:
+    question = get_random_question(questions_answers)
     update.message.reply_text(question)
     redis_db.set(update.effective_chat.id, question)
     return HANDLE_SOLUTION
 
 
-def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, file_path) -> int:
+def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, questions_answers) -> int:
     question = redis_db.get(update.effective_chat.id)
-    answer = get_answer(file_path, question)
+    answer = get_answer(questions_answers, question)
     simple_answer = answer.split("(")[0].split(".")[0]
     if update.message.text.strip() == simple_answer.strip():
         update.message.reply_text('Молодец, ты угадал, хочешь попробовать ещё?')
@@ -66,9 +66,9 @@ def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, 
         return GIVE_UP
 
 
-def handle_give_up(update: Update, context: CallbackContext, redis_db, file_path) -> int:
+def handle_give_up(update: Update, context: CallbackContext, redis_db, questions_answers) -> int:
     question = redis_db.get(update.effective_chat.id)
-    answer = get_answer(file_path, question)
+    answer = get_answer(questions_answers, question)
     update.message.reply_text(f"Правильный ответ: {answer}")
     return NEW_QUESTION
 
@@ -96,6 +96,8 @@ def main():
     redis_password = env('REDIS_PASSWORD')
     file_path = env('QUESTIONS_PATH', 'questions.json')
 
+    questions_answers = load_questions_answers(file_path)
+
     redis_db = redis.Redis(
         host=redis_host,
         port=redis_port,
@@ -117,7 +119,7 @@ def main():
             NEW_QUESTION: [
                 MessageHandler(
                     Filters.regex('^Новый вопрос$'),
-                    partial(handle_new_question, redis_db=redis_db, file_path=file_path)
+                    partial(handle_new_question, redis_db=redis_db, questions_answers=questions_answers)
                 )
             ],
             HANDLE_SOLUTION: [
@@ -127,17 +129,17 @@ def main():
                 ),
                 MessageHandler(
                     Filters.text,
-                    partial(handle_solution_attempt, redis_db=redis_db, file_path=file_path)
+                    partial(handle_solution_attempt, redis_db=redis_db, questions_answers=questions_answers)
                 ),
             ],
             GIVE_UP: [
                 MessageHandler(
                     Filters.regex('^Сдаться$'),
-                    partial(handle_give_up, redis_db=redis_db, file_path=file_path)
+                    partial(handle_give_up, redis_db=redis_db, questions_answers=questions_answers)
                 ),
                 MessageHandler(
                     Filters.text,
-                    partial(handle_solution_attempt, redis_db=redis_db, file_path=file_path)
+                    partial(handle_solution_attempt, redis_db=redis_db, questions_answers=questions_answers)
                 )
             ],
         },
