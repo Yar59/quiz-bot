@@ -7,7 +7,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.utils import get_random_id
 from environs import Env
 
-from tools import get_random_question, get_answer
+from load_questions import get_random_question, get_answer
 
 
 def handle_messages(event, vk_api, redis_db, file_path):

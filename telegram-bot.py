@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from environs import Env
 
-from tools import get_random_question, get_answer
+from load_questions import get_random_question, get_answer
 
 logger = logging.getLogger(__name__)
 
