@@ -36,10 +36,6 @@ def get_random_question(questions_answers):
     return random.choice(list(questions_answers.keys()))
 
 
-def get_answer(questions_answers, question):
-    return questions_answers.get(question)
-
-
 def main():
     parser = argparse.ArgumentParser(description='Загрузка и сохранение вопросов и ответов для викторины')
     parser.add_argument('load_dir', type=pathlib.Path, help='Директория с файлами вопросов')

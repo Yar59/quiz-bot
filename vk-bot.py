@@ -7,7 +7,7 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.utils import get_random_id
 from environs import Env
 
-from load_questions import get_random_question, get_answer, load_questions_answers
+from load_questions import get_random_question, load_questions_answers
 
 
 def handle_messages(event, vk_api, redis_db, questions_answers):
@@ -27,7 +27,7 @@ def handle_messages(event, vk_api, redis_db, questions_answers):
             message='Рады приветствовать тебя на нашей викторине, жми "Новый вопрос" чтобы получить вопрос'
         )
     else:
-        answer = get_answer(questions_answers, question)
+        answer = questions_answers.get(question)
         if event.text == "Новый вопрос":
             question = get_random_question(questions_answers)
             redis_db.set(event.user_id, question)

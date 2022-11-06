@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from environs import Env
 
-from load_questions import get_random_question, get_answer, load_questions_answers
+from load_questions import get_random_question, load_questions_answers
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def handle_new_question(update: Update, context: CallbackContext, redis_db, ques
 
 def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, questions_answers) -> int:
     question = redis_db.get(update.effective_chat.id)
-    answer = get_answer(questions_answers, question)
+    answer = questions_answers.get(question)
     simple_answer = answer.split("(")[0].split(".")[0]
     if update.message.text.strip() == simple_answer.strip():
         update.message.reply_text('Молодец, ты угадал, хочешь попробовать ещё?')
@@ -68,7 +68,7 @@ def handle_solution_attempt(update: Update, context: CallbackContext, redis_db, 
 
 def handle_give_up(update: Update, context: CallbackContext, redis_db, questions_answers) -> int:
     question = redis_db.get(update.effective_chat.id)
-    answer = get_answer(questions_answers, question)
+    answer = questions_answers.get(question)
     update.message.reply_text(f"Правильный ответ: {answer}")
     return NEW_QUESTION
 
